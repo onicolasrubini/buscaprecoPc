@@ -1,0 +1,42 @@
+name: Monitor de preços
+
+on:
+  schedule:
+    # roda às 09:00, 13:00 e 19:00 no horário de Brasília (UTC-3 -> UTC+3h)
+    - cron: "0 12,16,22 * * *"
+  workflow_dispatch: {}   # permite rodar manualmente pela aba Actions
+
+permissions:
+  contents: write   # necessário para o workflow salvar o histórico de preços
+
+jobs:
+  check-prices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Rodar o monitor
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python scraper.py
+
+      - name: Salvar histórico de preços atualizado
+        run: |
+          git config user.name "monitor-precos-bot"
+          git config user.email "actions@github.com"
+          git add history.json
+          git diff --cached --quiet || git commit -m "Atualiza histórico de preços"
+          git push
